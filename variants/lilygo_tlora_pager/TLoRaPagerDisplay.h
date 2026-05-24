@@ -1,15 +1,14 @@
 #pragma once
 
 // LGFX display driver for the LILYGO T-LoRa Pager
-// Display: 2.33" ST7796, 480x222 (landscape widescreen)
+// Display: 2.33" ST7796, 480×222 (landscape widescreen)
 //
-// SPI pins are SHARED between LoRa, NFC, and Display on this hardware.
-// The display uses SPI3_HOST (HSPI) so it does not conflict with
-// RadioLib which claims the default SPI (SPI2_HOST / FSPI).
+// SPI bus (IO34/33/35) is shared by LoRa (CS=36), NFC (CS=39) and Display (CS=38).
+// The display uses SPI3_HOST (HSPI) so it does not conflict with RadioLib,
+// which initialises the default SPI (SPI2_HOST / FSPI) for the LoRa radio.
 //
-// NOTE: The display CS pin is not exposed in the LILYGO pinout diagram;
-//       it appears to be tied low on the PCB (display always selected).
-//       Set PIN_TFT_CS below if your unit has an accessible CS pin.
+// Pin source: https://wiki.lilygo.cc/products/t-lora-series/t-lora-pager/
+//   Display CS  = IO38   DC = IO37   BL = IO42   RESET = N/C
 
 #include <helpers/ui/LGFXDisplay.h>
 
@@ -26,7 +25,7 @@ public:
     // ── SPI bus ────────────────────────────────────────────────────────
     {
       auto cfg = _bus.config();
-      cfg.spi_host   = SPI3_HOST;   // HSPI – separate from RadioLib's SPI2
+      cfg.spi_host   = SPI3_HOST;   // HSPI – separate from RadioLib's SPI2/FSPI
       cfg.freq_write = 40000000;    // 40 MHz write
       cfg.freq_read  = 16000000;    // 16 MHz read
       cfg.pin_sclk   = 35;          // SCK  – shared with LoRa / NFC
@@ -38,22 +37,22 @@ public:
     }
 
     // ── Panel ──────────────────────────────────────────────────────────
-    // The ST7796 controller has 320 columns × 480 rows (portrait).
+    // The ST7796 controller has 320 columns × 480 rows (portrait native).
     // The physical LCD panel is 480 wide × 222 tall (widescreen landscape).
-    // Configured in portrait here; LGFXDisplay::begin() calls setRotation(1)
-    // which maps to: logical width=480, logical height=222.
+    // Configured here in portrait orientation; LGFXDisplay::begin() calls
+    // setRotation(1) which gives: logical width=480, logical height=222.
     // The 222-pixel visible columns are centred in the 320-column controller
     // memory: offset_x = (320 − 222) / 2 = 49.
     {
       auto cfg = _panel.config();
-      cfg.pin_cs          = -1;   // CS is tied low on PCB (not a GPIO)
-      cfg.pin_rst         = -1;   // No dedicated reset pin
+      cfg.pin_cs          = 38;    // IO38 – confirmed from official LILYGO pinout
+      cfg.pin_rst         = -1;    // RESET not connected
       cfg.pin_busy        = -1;
-      cfg.memory_width    = 320;  // ST7796 native column count
-      cfg.memory_height   = 480;  // ST7796 native row count
-      cfg.panel_width     = 222;  // Physical visible columns (pre-rotation)
-      cfg.panel_height    = 480;  // Physical visible rows (pre-rotation)
-      cfg.offset_x        = 49;   // Centre 222-px panel in 320-px memory
+      cfg.memory_width    = 320;   // ST7796 native column count
+      cfg.memory_height   = 480;   // ST7796 native row count
+      cfg.panel_width     = 222;   // Physical visible columns (pre-rotation)
+      cfg.panel_height    = 480;   // Physical visible rows  (pre-rotation)
+      cfg.offset_x        = 49;    // Centre 222-px panel in 320-px memory
       cfg.offset_y        = 0;
       cfg.offset_rotation = 0;
       cfg.dummy_read_pixel = 8;
@@ -62,14 +61,14 @@ public:
       cfg.invert           = false;
       cfg.rgb_order        = false;
       cfg.dlen_16bit       = false;
-      cfg.bus_shared       = false; // Display has its own SPI host (SPI3)
+      cfg.bus_shared       = false; // Display owns SPI3; RadioLib owns SPI2
       _panel.config(cfg);
     }
 
     // ── Backlight ─────────────────────────────────────────────────────
     {
       auto cfg = _light.config();
-      cfg.pin_bl      = 42;     // BL pin
+      cfg.pin_bl      = 42;     // IO42 – 16-level PWM backlight
       cfg.invert      = false;
       cfg.freq        = 44100;
       cfg.pwm_channel = 7;
