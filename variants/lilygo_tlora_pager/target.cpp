@@ -46,8 +46,8 @@ bool radio_init() {
   Wire.begin(PIN_BOARD_SDA, PIN_BOARD_SCL);
   rtc_clock.begin(Wire);
 
-  // GPS UART: ESP32-S3 RX←IO12 (GPS TX), TX→IO4 (GPS RX)
-  Serial1.begin(38400, SERIAL_8N1, 12, 4);
+  // GPS UART is initialised by EnvironmentSensorManager::initBasicGPS()
+  // using PIN_GPS_TX=4 and PIN_GPS_RX=12 defined in platformio.ini.
 
   // Initialise LoRa SPI bus then start the radio
   return radio.std_init(&lora_spi);
