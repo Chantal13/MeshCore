@@ -1,20 +1,26 @@
 #include <Arduino.h>
 #include "target.h"
 
+// ─── Radio SPI ────────────────────────────────────────────────────────────
+// Declared before TLoRaPagerBoard::begin() so the method body can reference it.
+// SPI bus is shared between LoRa (CS=IO36), NFC (CS=IO39), and Display (CS=IO38).
+// Both RadioLib and LGFX use SPI2_HOST (FSPI) on GPIO34/33/35.
+SPIClass lora_spi;  // SPI2 (FSPI); pre-initialised in TLoRaPagerBoard::begin()
+
 // ─── Board ────────────────────────────────────────────────────────────────
-// TLoRaPagerBoard::begin() pre-initialises lora_spi (SPI2/FSPI) BEFORE
-// display.begin() runs in main.cpp.  In ESP-IDF 5.x, spi_bus_initialize()
-// calls esp_gpio_reserve_pins() for the supplied GPIO pins.  If LGFX ran
-// spi_bus_initialize(SPI3_HOST, {34,33,35}) first, those pins would be
-// reserved for SPI3 and the subsequent spi_bus_initialize(SPI2_HOST, {34,33,35})
-// inside lora_spi.begin() would fail, leaving RadioLib unable to communicate
-// with the SX1262 (radio_init() returns false → halt()).
+// Pre-initialises lora_spi BEFORE display.begin() runs in main.cpp.
+// In ESP-IDF 5.x, spi_bus_initialize() calls esp_gpio_reserve_pins() for the
+// configured GPIOs.  If LGFX ran spi_bus_initialize(SPI3_HOST, {34,33,35})
+// first, those pins would be reserved for SPI3 and the subsequent call to
+// spi_bus_initialize(SPI2_HOST, {34,33,35}) inside lora_spi.begin() would
+// fail — leaving RadioLib unable to communicate with the SX1262 so
+// radio_init() returned false and halt() was called.
 //
-// By calling lora_spi.begin() here (in board.begin(), which main.cpp calls
-// before display.begin()), SPI2_HOST claims the pins first.  LGFX is set to
-// SPI2_HOST with bus_shared=true; when it calls spi_bus_initialize(SPI2_HOST,…)
-// it receives ESP_ERR_INVALID_STATE and handles it gracefully, proceeding to
-// spi_bus_add_device() on the already-live bus.
+// By calling lora_spi.begin() here (board.begin() runs before display.begin()
+// in main.cpp), SPI2_HOST claims GPIO34/33/35 first.  LGFX uses SPI2_HOST
+// with bus_shared=true; when it calls spi_bus_initialize(SPI2_HOST,…) it
+// receives ESP_ERR_INVALID_STATE (bus already up — handled gracefully) and
+// proceeds to spi_bus_add_device(), registering the display on the live bus.
 void TLoRaPagerBoard::begin() {
   ESP32Board::begin();
   lora_spi.begin(P_LORA_SCLK, P_LORA_MISO, P_LORA_MOSI);
@@ -23,11 +29,6 @@ void TLoRaPagerBoard::begin() {
 TLoRaPagerBoard board;
 
 // ─── Radio ────────────────────────────────────────────────────────────────
-// SPI bus is shared between LoRa (CS=IO36), NFC (CS=IO39), and Display (CS=IO38).
-// Both RadioLib and LGFX use SPI2_HOST (FSPI) on GPIO34/33/35.
-// lora_spi is pre-initialised in TLoRaPagerBoard::begin() before display.begin().
-SPIClass lora_spi;  // SPI2 (FSPI); pre-initialised in board.begin()
-
 RADIO_CLASS radio = new Module(
   P_LORA_NSS,    // CS   – IO36
   P_LORA_DIO_1,  // DIO1 – IO14
@@ -71,7 +72,7 @@ bool radio_init() {
 
   // lora_spi was pre-initialised in TLoRaPagerBoard::begin(); std_init() calls
   // lora_spi.begin() again but SPIClass detects _spi != NULL and returns early,
-  // so the existing SPI2_HOST bus (and its GPIO routing) is preserved.
+  // preserving the existing SPI2_HOST bus and its GPIO routing.
   return radio.std_init(&lora_spi);
 }
 
