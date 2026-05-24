@@ -4,8 +4,16 @@
 // Display: 2.33" ST7796, 480×222 (landscape widescreen)
 //
 // SPI bus (IO34/33/35) is shared by LoRa (CS=36), NFC (CS=39) and Display (CS=38).
-// The display uses SPI3_HOST (HSPI) so it does not conflict with RadioLib,
-// which initialises the default SPI (SPI2_HOST / FSPI) for the LoRa radio.
+//
+// Both the display and the LoRa radio share SPI2_HOST (FSPI) on the same physical
+// pins.  target.cpp pre-initialises lora_spi (Arduino SPIClass / FSPI) inside
+// TLoRaPagerBoard::begin(), which runs before display.begin() in main.cpp.  That
+// first call to spi_bus_initialize(SPI2_HOST, …) claims GPIO34/33/35.  When
+// LGFX then calls spi_bus_initialize(SPI2_HOST, …) it receives
+// ESP_ERR_INVALID_STATE (bus already up) and handles it gracefully by proceeding
+// straight to spi_bus_add_device() — the display device is added to the existing
+// bus.  bus_shared=true instructs LGFX to acquire / release the IDF bus around
+// every transaction, ensuring safe interleaving with RadioLib.
 //
 // Pin source: https://wiki.lilygo.cc/products/t-lora-series/t-lora-pager/
 //   Display CS  = IO38   DC = IO37   BL = IO42   RESET = N/C
@@ -25,7 +33,7 @@ public:
     // ── SPI bus ────────────────────────────────────────────────────────
     {
       auto cfg = _bus.config();
-      cfg.spi_host   = SPI3_HOST;   // HSPI – separate from RadioLib's SPI2/FSPI
+      cfg.spi_host   = SPI2_HOST;   // FSPI – same host as RadioLib's lora_spi
       cfg.freq_write = 40000000;    // 40 MHz write
       cfg.freq_read  = 16000000;    // 16 MHz read
       cfg.pin_sclk   = 35;          // SCK  – shared with LoRa / NFC
@@ -43,6 +51,10 @@ public:
     // setRotation(1) which gives: logical width=480, logical height=222.
     // The 222-pixel visible columns are centred in the 320-column controller
     // memory: offset_x = (320 − 222) / 2 = 49.
+    //
+    // offset_rotation=2: LGFXDisplay::begin() calls setRotation(1); effective
+    // rotation = (1+2)%4 = 3 (landscape, 180° from rotation-1) which corrects
+    // the upside-down orientation observed with offset_rotation=0.
     {
       auto cfg = _panel.config();
       cfg.pin_cs          = 38;    // IO38 – confirmed from official LILYGO pinout
@@ -54,14 +66,14 @@ public:
       cfg.panel_height    = 480;   // Physical visible rows  (pre-rotation)
       cfg.offset_x        = 49;    // Centre 222-px panel in 320-px memory
       cfg.offset_y        = 0;
-      cfg.offset_rotation = 0;
+      cfg.offset_rotation = 2;     // Corrects upside-down display
       cfg.dummy_read_pixel = 8;
       cfg.dummy_read_bits  = 1;
       cfg.readable         = true;
       cfg.invert           = false;
       cfg.rgb_order        = false;
       cfg.dlen_16bit       = false;
-      cfg.bus_shared       = false; // Display owns SPI3; RadioLib owns SPI2
+      cfg.bus_shared       = true;  // Shared with RadioLib on SPI2_HOST
       _panel.config(cfg);
     }
 

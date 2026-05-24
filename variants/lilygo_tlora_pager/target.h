@@ -20,7 +20,18 @@
   #include <helpers/ui/MomentaryButton.h>
 #endif
 
-extern ESP32Board board;
+// TLoRaPagerBoard pre-initialises the LoRa SPI bus (SPI2/FSPI) inside begin(),
+// which main.cpp calls before display.begin().  This ensures SPI2_HOST claims
+// GPIO34/33/35 first; when LGFX later calls spi_bus_initialize(SPI2_HOST, …) it
+// receives ESP_ERR_INVALID_STATE (bus already up) and handles it gracefully by
+// proceeding to spi_bus_add_device() — no pin-reservation conflict.
+// begin() body is in target.cpp (where lora_spi is visible).
+class TLoRaPagerBoard : public ESP32Board {
+public:
+  void begin();
+};
+
+extern TLoRaPagerBoard board;
 extern WRAPPER_CLASS radio_driver;
 extern AutoDiscoverRTCClock rtc_clock;
 extern EnvironmentSensorManager sensors;
