@@ -5,7 +5,7 @@
 ESP32Board board;
 
 // ─── Radio ────────────────────────────────────────────────────────────────
-// SPI bus is shared between LoRa (CS=IO36), NFC (CS=IO39), and Display.
+// SPI bus is shared between LoRa (CS=IO36), NFC (CS=IO39), and Display (CS=IO38).
 // RadioLib claims the default SPI (SPI2 / FSPI); LGFX uses SPI3 (HSPI).
 static SPIClass lora_spi;  // default SPI2 (FSPI) for LoRa
 
@@ -23,15 +23,14 @@ WRAPPER_CLASS radio_driver(radio, board);
 ESP32RTCClock fallback_clock;
 AutoDiscoverRTCClock rtc_clock(fallback_clock);
 
-// ─── GPS (optional) ───────────────────────────────────────────────────────
-// MIA-M10Q: ESP32-S3 receives on IO12 (GPS TX), transmits on IO4 (GPS RX)
-#ifdef ENABLE_GPS
-  MicroNMEALocationProvider gps(Serial1, &rtc_clock);
-  EnvironmentSensorManager sensors(gps);
-#endif
+// ─── GPS + Sensors ────────────────────────────────────────────────────────
+// MIA-M10Q: ESP32-S3 receives on IO12 (GPS TX), transmits on IO4 (GPS RX).
+// sensors is always required by MyMesh / UITask regardless of GPS hardware.
+MicroNMEALocationProvider gps(Serial1, &rtc_clock);
+EnvironmentSensorManager sensors(gps);
 
 // ─── Display & User Input ─────────────────────────────────────────────────
-// Rotary encoder centre button used as the user button.
+// Rotary encoder centre button (IO7) used as the user button.
 #ifdef DISPLAY_CLASS
   TLoRaPagerDisplay display;
   MomentaryButton   user_btn(PIN_USER_BTN, 1000, true);  // active-low
@@ -47,10 +46,8 @@ bool radio_init() {
   Wire.begin(PIN_BOARD_SDA, PIN_BOARD_SCL);
   rtc_clock.begin(Wire);
 
-#ifdef ENABLE_GPS
-  // GPS UART: ESP32-S3 RX←IO12, TX→IO4
+  // GPS UART: ESP32-S3 RX←IO12 (GPS TX), TX→IO4 (GPS RX)
   Serial1.begin(38400, SERIAL_8N1, 12, 4);
-#endif
 
   // Initialise LoRa SPI bus then start the radio
   return radio.std_init(&lora_spi);

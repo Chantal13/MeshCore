@@ -11,11 +11,9 @@
 #include <helpers/radiolib/CustomSX1262Wrapper.h>
 #include <helpers/ESP32Board.h>
 #include <helpers/AutoDiscoverRTCClock.h>
-
-#ifdef ENABLE_GPS
-  #include <helpers/sensors/MicroNMEALocationProvider.h>
-  #include <helpers/sensors/EnvironmentSensorManager.h>
-#endif
+#include <helpers/SensorManager.h>
+#include <helpers/sensors/MicroNMEALocationProvider.h>
+#include <helpers/sensors/EnvironmentSensorManager.h>
 
 #ifdef DISPLAY_CLASS
   #include "TLoRaPagerDisplay.h"
@@ -25,10 +23,7 @@
 extern ESP32Board board;
 extern WRAPPER_CLASS radio_driver;
 extern AutoDiscoverRTCClock rtc_clock;
-
-#ifdef ENABLE_GPS
-  extern EnvironmentSensorManager sensors;
-#endif
+extern EnvironmentSensorManager sensors;
 
 #ifdef DISPLAY_CLASS
   extern TLoRaPagerDisplay display;
